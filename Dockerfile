@@ -2,28 +2,45 @@
 # Gunakan base image PHP FPM (tetap php:8.2-fpm-alpine)
 FROM php:8.2-fpm-alpine
 
-# Update repositori Alpine sebelum menginstal paket
-# Ini memastikan daftar paket terbaru tersedia
+# Update repositori Alpine dan instal dependensi sistem (non-PHP ekstensi)
 RUN apk update && \
-    # Instal dependensi sistem yang dibutuhkan untuk PHP, Nginx, Supervisor, dll.
     apk add --no-cache \
     nginx \
-    php8-mysqli \
-    php8-pdo_mysql \
-    php8-dom \
-    php8-xml \
-    php8-simplexml \
-    php8-json \
-    php8-mbstring \
-    php8-curl \
-    php8-gd \
-    php8-zip \
     supervisor \
     openssl \
     git \
     unzip \
     # Pastikan untuk membersihkan cache apk setelah instalasi berhasil
     && rm -rf /var/cache/apk/*
+
+# --- BAGIAN BARU UNTUK INSTALASI EKSTENSI PHP ---
+# Instal ekstensi PHP menggunakan docker-php-ext-install dan docker-php-ext-enable
+# Pastikan nama ekstensi sesuai dengan yang diharapkan oleh PHP (tanpa 'php8-')
+RUN docker-php-ext-install -j$(nproc) \
+    mysqli \
+    pdo_mysql \
+    dom \
+    xml \
+    simplexml \
+    json \
+    mbstring \
+    curl \
+    gd \
+    zip \
+    && docker-php-ext-enable \
+    mysqli \
+    pdo_mysql \
+    dom \
+    xml \
+    simplexml \
+    json \
+    mbstring \
+    curl \
+    gd \
+    zip
+
+# (Opsional) Jika ada ekstensi PECL yang Anda butuhkan, instal terpisah
+RUN pecl install memcached && docker-php-ext-enable memcached
 
 # Konfigurasi Nginx: Salin file konfigurasi Nginx kustom Anda
 COPY ./nginx/default.conf /etc/nginx/conf.d/default.conf
@@ -33,14 +50,12 @@ WORKDIR /var/www/html
 COPY . .
 
 # Setel izin yang sesuai untuk folder yang memerlukan penulisan oleh web server
-# Sesuaikan ini berdasarkan kebutuhan aplikasi Anda. 'uploads' dan mungkin 'cache'/'storage'
-# User 'www-data' adalah user default untuk Nginx/PHP-FPM di container berbasis Debian/Alpine
 RUN chown -R www-data:www-data /var/www/html/uploads \
     && chmod -R 775 /var/www/html/uploads
 
 # (Opsional) Jika Anda menggunakan Composer untuk dependensi PHP:
-# COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-# RUN composer install --no-dev --optimize-autoloader --working-dir=/var/www/html
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+RUN composer install --no-dev --optimize-autoloader --working-dir=/var/www/html
 
 # Expose port yang digunakan oleh Nginx
 EXPOSE 80
