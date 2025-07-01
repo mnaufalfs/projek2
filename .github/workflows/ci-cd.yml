@@ -1,0 +1,75 @@
+# rental_kendaraan_new/.github/workflows/ci-cd.yml
+name: CI/CD Pipeline for PHP App
+
+on:
+  push:
+    branches:
+      - main # Workflow akan berjalan setiap kali ada push ke branch 'main'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest # Menggunakan runner GitHub Actions berbasis Ubuntu
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 # Mengambil kode sumber dari repositori GitHub
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3 # Menyiapkan Docker Buildx untuk build yang lebih baik
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3 # Melakukan login ke Docker Hub
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        id: docker_build
+        uses: docker/build-and-push-action@v5 # Membangun Docker image dan mendorongnya ke Docker Hub
+        with:
+          context: . # Konteks build adalah root direktori proyek Anda
+          file: ./Dockerfile # Menggunakan Dockerfile yang telah Anda buat
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/rental_kendaraan_new:latest # Tag image dengan username Docker Hub dan nama repo Anda
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.0 # Action untuk koneksi SSH otomatis ke EC2
+        with:
+          host: ${{ secrets.EC2_HOST }}        # Mengambil IP/DNS host dari GitHub Secret
+          username: ${{ secrets.EC2_USERNAME }}  # Mengambil username SSH dari GitHub Secret
+          key: ${{ secrets.EC2_SSH_KEY }}        # Mengambil private key (.pem) dari GitHub Secret
+          script: |                            # Perintah yang akan dijalankan di server EC2
+            echo "Starting deployment on EC2 at $(date)..."
+            
+            # Pindah ke direktori proyek di VPS
+            cd /var/www/rental_kendaraan_new
+            
+            # Login ke Docker Hub di VPS (penting agar VPS bisa pull image privat jika ada)
+            sudo docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+
+            # Tarik image Docker terbaru dari Docker Hub
+            # Ini akan mengunduh image yang baru saja di-push dari GitHub Actions
+            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/rental_kendaraan_new:latest
+
+            # Hentikan dan hapus container lama yang terkait dengan docker-compose
+            # Ini memastikan tidak ada konflik port atau sisa container dari deployment sebelumnya
+            sudo docker-compose down
+
+            # Jalankan aplikasi dengan Docker Compose di mode detached (-d)
+            # --build memastikan Dockerfile di-rebuild jika ada perubahan (meskipun image sudah ditarik)
+            # --remove-orphans menghapus layanan container yang tidak lagi didefinisikan di docker-compose.yml
+            sudo docker-compose up -d --build --remove-orphans
+
+            # (Opsional) Jika Anda memiliki database.sql untuk import atau migrasi:
+            # Pastikan database.sql ada di dalam container app (sudah di-COPY di Dockerfile).
+            # Perintah ini mengasumsikan Anda ingin menjalankan import SQL setiap kali deploy.
+            # HATI-HATI: Menjalankan dump SQL setiap kali deploy bisa menimpa data yang sudah ada.
+            # Lebih baik gunakan sistem migrasi database yang lebih canggih untuk produksi.
+            sudo docker exec $(sudo docker-compose ps -q db) mysql -u root -p"${{ secrets.MYSQL_ROOT_PASSWORD_DOCKER }}" rental_kendaraan < /var/www/html/rental_kendaraan.sql
+            # Gunakan perintah ini HANYA jika database.sql adalah schema inisial atau Anda yakin untuk menimpa.
+
+            # Bersihkan image dan container Docker yang tidak terpakai di VPS
+            # -a untuk membersihkan semua (bahkan yang tidak terpakai). -f untuk force tanpa konfirmasi.
+            sudo docker system prune -a -f
+
+            echo "Deployment finished successfully at $(date)."
