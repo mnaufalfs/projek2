@@ -46,7 +46,7 @@ ob_start();
     <div class="container">
         <div class="row align-items-center">
             <div class="col-md-6">
-                <h1 class="display-4 fw-bold mb-4">Rent Your Perfect Vehicle</h1>
+                <h1 class="display-4 fw-bold mb-4">Rent Your Perfect Vehicle </h1>
                 <p class="lead mb-4">Choose from our wide selection of vehicles for your transportation needs. We offer competitive prices and excellent service.</p>
                 <a href="vehicles.php" class="btn btn-light btn-lg">
                     <i class="fas fa-car me-2"></i> Browse Vehicles
