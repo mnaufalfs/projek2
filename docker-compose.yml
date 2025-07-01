@@ -1,34 +1,31 @@
-# rental_kendaraan_new/docker-compose.yml
 version: '3.8'
 
 services:
   app:
     build:
-      context: . # Konteks build adalah direktori saat ini (root proyek)
-      dockerfile: Dockerfile # Menggunakan Dockerfile yang kita buat
-    image: ${{ secrets.DOCKER_USERNAME }}/rental_kendaraan_new:latest # Ganti dengan username Docker Hub Anda
+      context: .
+      dockerfile: Dockerfile
+    # GANTI 'YOUR_DOCKER_USERNAME_HERE' DENGAN USERNAME DOCKER HUB ANDA YANG SEBENARNYA
+    image: mnaufalfs/rental_kendaraan_new:latest
     restart: always
     ports:
-      - "80:80" # Port 80 di host (VPS) akan diarahkan ke port 80 di container
-    # volumes:
-    #   - .:/var/www/html # **PENTING:** Komen atau hapus ini untuk produksi. Kode diambil dari image.
+      - "80:80"
     environment:
-      # Variabel lingkungan untuk konfigurasi database di PHP (sesuai config/database.php Anda)
       DB_HOST: db
       DB_USER: root
-      DB_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD_DOCKER }} # Ambil dari GitHub Secret
-      DB_NAME: rental_kendaraan # Nama database Anda
+      DB_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD_DOCKER }}
+      DB_NAME: rental_kendaraan
     depends_on:
-      - db # Pastikan layanan 'db' berjalan sebelum 'app'
+      - db
 
   db:
-    image: mysql:8.0 # Anda bisa menggunakan mariadb:latest atau versi lain
+    image: mysql:8.0
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD_DOCKER }} # Password root MySQL
-      MYSQL_DATABASE: rental_kendaraan # Database yang akan dibuat secara otomatis
+      MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD_DOCKER }}
+      MYSQL_DATABASE: rental_kendaraan
     volumes:
-      - db_data:/var/lib/mysql # Volume persisten untuk data database
+      - db_data:/var/lib/mysql
 
 volumes:
-  db_data: # Definisi volume persisten untuk database
+  db_data:
