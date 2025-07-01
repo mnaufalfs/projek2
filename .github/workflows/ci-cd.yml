@@ -25,7 +25,7 @@ jobs:
 
       - name: Build and push Docker image
         id: docker_build
-        uses: docker/build-and-push-action@v5 # Membangun Docker image dan mendorongnya ke Docker Hub
+        uses: docker/build-push-action@v5 # Membangun Docker image dan mendorongnya ke Docker Hub
         with:
           context: . # Konteks build adalah root direktori proyek Anda
           file: ./Dockerfile # Menggunakan Dockerfile yang telah Anda buat
