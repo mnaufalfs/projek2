@@ -33,7 +33,7 @@ jobs:
           tags: ${{ secrets.DOCKER_USERNAME }}/rental_kendaraan_new:latest # Tag image dengan username Docker Hub dan nama repo Anda
 
       - name: Deploy to EC2 via SSH
-        uses: appleboy/ssh-action@v1.0.0 # Action untuk koneksi SSH otomatis ke EC2
+        uses: appleboy/ssh-action@v1.0.0 # Action untuk koneksi SSH otomatis ke EC2 
         with:
           host: ${{ secrets.EC2_HOST }}        # Mengambil IP/DNS host dari GitHub Secret
           username: ${{ secrets.EC2_USERNAME }}  # Mengambil username SSH dari GitHub Secret
