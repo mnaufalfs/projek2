@@ -2,7 +2,8 @@
 FROM php:8.2-fpm-alpine
 
 # Menginstal dependensi sistem yang dibutuhkan
-RUN apk update && apk add --no-cache \
+RUN apk update && \
+    apk add --no-cache \
     nginx \
     supervisor \
     openssl \
@@ -15,9 +16,8 @@ RUN apk update && apk add --no-cache \
     libwebp-dev \
     freetype-dev \
     curl-dev \
-    # Tambahkan zlib-dev dan libffi-dev yang kadang diperlukan untuk ekstensi seperti curl dan json/mbstring
-    zlib-dev \      # <--- TAMBAH INI
-    libffi-dev \    # <--- TAMBAH INI (jarang, tapi kadang membantu)
+    zlib-dev \
+    libffi-dev \
     && rm -rf /var/cache/apk/*
 
 # --- BAGIAN INSTALASI EKSTENSI PHP (UTAMA) ---
