@@ -1,48 +1,15 @@
 # rental_kendaraan_new/Dockerfile
 FROM php:8.2-fpm-alpine
 
-# Menginstal dependensi sistem yang dibutuhkan
-RUN apk update && \
-    apk add --no-cache \
-    nginx \
-    supervisor \
-    openssl \
-    git \
-    unzip \
-    libxml2-dev \
-    libzip-dev \          # <-- libzip-dev tetap di sini karena dibutuhkan untuk kompilasi zip
-    libjpeg-turbo-dev \
-    libpng-dev \
-    libwebp-dev \
-    freetype-dev \
-    curl-dev \
-    && rm -rf /var/cache/apk/*
+# Menginstal dependensi sistem (non-PHP ekstensi) dalam SATU BARIS agar menghindari masalah sintaks multi-baris
+RUN apk update && apk add --no-cache nginx supervisor openssl git unzip libxml2-dev libzip-dev libjpeg-turbo-dev libpng-dev libwebp-dev freetype-dev curl-dev && rm -rf /var/cache/apk/*
 
 # --- BAGIAN INSTALASI EKSTENSI PHP ---
 # Instal ekstensi PHP umum yang lebih stabil dulu
-RUN docker-php-ext-install -j$(nproc) \
-    mysqli \
-    pdo_mysql \
-    dom \
-    xml \
-    simplexml \
-    json \
-    mbstring \
-    curl \
-    gd \
-    && docker-php-ext-enable \
-    mysqli \
-    pdo_mysql \
-    dom \
-    xml \
-    simplexml \
-    json \
-    mbstring \
-    curl \
-    gd
+RUN docker-php-ext-install -j$(nproc) mysqli pdo_mysql dom xml simplexml json mbstring curl gd \
+    && docker-php-ext-enable mysqli pdo_mysql dom xml simplexml json mbstring curl gd
 
 # Instal ekstensi 'zip' secara terpisah
-# Kadang-kadang ekstensi seperti zip membutuhkan penanganan terpisah atau mungkin ada isu kompatibilitas minor
 RUN docker-php-ext-install -j$(nproc) zip \
     && docker-php-ext-enable zip
 
@@ -58,8 +25,8 @@ RUN chown -R www-data:www-data /var/www/html/uploads \
     && chmod -R 775 /var/www/html/uploads
 
 # (Opsional) Jika Anda menggunakan Composer untuk dependensi PHP:
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-RUN composer install --no-dev --optimize-autoloader --working-dir=/var/www/html
+# COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# RUN composer install --no-dev --optimize-autoloader --working-dir=/var/www/html
 
 # Expose port yang digunakan oleh Nginx
 EXPOSE 80
