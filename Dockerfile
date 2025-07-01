@@ -1,76 +1,53 @@
 # rental_kendaraan_new/Dockerfile
-# Menggunakan base image PHP FPM dengan Alpine Linux versi 8.2
-FROM php:8.2-fpm-alpine
+# Menggunakan image PHP FPM dengan Debian Bullseye (tag lebih umum)
+FROM php:8.2-fpm
 
-# Menginstal dependensi sistem yang dibutuhkan dalam SATU BARIS FISIK PENUH
-# Ini untuk mencegah kesalahan parsing yang disebabkan oleh masalah multi-baris atau spasi ekstra
-RUN apk update && apk add --no-cache nginx supervisor openssl git unzip libxml2-dev libzip-dev libjpeg-turbo-dev libpng-dev libwebp-dev freetype-dev curl-dev zlib-dev libffi-dev oniguruma-dev && rm -rf /var/cache/apk/*
+# Menginstal dependensi sistem yang dibutuhkan
+# BARIS INI HARUS SATU BARIS FISIK PENUH DI FILE DOCKERFILE ANDA.
+RUN apt update && apt install -y nginx supervisor openssl git unzip \
+    libxml2-dev libzip-dev libjpeg-dev libpng-dev libwebp-dev libfreetype6-dev \
+    libcurl4-openssl-dev libonig-dev zlib1g-dev libffi-dev build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 # --- BAGIAN INSTALASI EKSTENSI PHP ---
-# Instal ekstensi PHP umum yang lebih stabil dulu, KECUALI 'curl', 'gd', dan 'zip'
-# Jika salah satu ekstensi ini bermasalah, error akan muncul di baris ini
-RUN docker-php-ext-install -j$(nproc) \
-    mysqli \
-    pdo_mysql \
-    dom \
-    xml \
-    simplexml \
-    json \
-    mbstring \
-    && docker-php-ext-enable \
-    mysqli \
-    pdo_mysql \
-    dom \
-    xml \
-    simplexml \
-    json \
-    mbstring
+# Ekstensi dasar yang kurang rewel. JSON dan MBSTRING seharusnya sudah bawaan di PHP 8.2.
+RUN docker-php-ext-install -j$(nproc) mysqli pdo_mysql dom xml simplexml && \
+    docker-php-ext-enable mysqli pdo_mysql dom xml simplexml
 
-# --- Instal ekstensi 'curl' secara terpisah ---
-# Ini membantu mengisolasi masalah kompilasi spesifik untuk 'curl'
-RUN docker-php-ext-install -j$(nproc) curl \
-    && docker-php-ext-enable curl
+# --- Instal ekstensi 'curl' ---
+RUN docker-php-ext-install -j$(nproc) curl && docker-php-ext-enable curl
 
-# --- Instal ekstensi 'gd' secara terpisah ---
-# Ini membantu mengisolasi masalah kompilasi spesifik untuk 'gd'
-RUN docker-php-ext-install -j$(nproc) gd \
-    && docker-php-ext-enable gd
+# --- Instal ekstensi 'gd' ---
+# Konfigurasi eksplisit GD ini biasanya diperlukan
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp && \
+    docker-php-ext-install -j$(nproc) gd && docker-php-ext-enable gd
 
-# --- Instal ekstensi 'zip' secara terpisah ---
-# Ini membantu mengisolasi masalah kompilasi spesifik untuk 'zip'
-RUN docker-php-ext-install -j$(nproc) zip \
-    && docker-php-ext-enable zip
+# --- Instal ekstensi 'zip' (Kembali ke metode yang lebih sederhana) ---
+# Opsi --with-libzip tidak dikenali, jadi kita hanya menggunakan install saja.
+RUN docker-php-ext-install -j$(nproc) zip && docker-php-ext-enable zip
 
-# Menentukan direktori kerja di dalam kontainer. Semua perintah COPY dan RUN berikutnya akan relatif terhadap ini.
+# Menentukan direktori kerja
 WORKDIR /var/www/html
 
-# Menyalin file konfigurasi Nginx kustom dari host ke lokasi konfigurasi Nginx di kontainer.
-# Pastikan Anda memiliki folder 'nginx' di root proyek dengan file 'default.conf' di dalamnya.
+# Menyalin file konfigurasi Nginx kustom.
 COPY ./nginx/default.conf /etc/nginx/conf.d/default.conf
 
-# Menyalin seluruh isi proyek Anda dari host ke direktori kerja di dalam kontainer.
+# Menyalin seluruh isi proyek Anda.
 COPY . .
 
-# Mengatur kepemilikan dan izin untuk folder 'uploads' agar web server (www-data)
-# dapat menulis ke dalamnya. Sesuaikan path jika ada folder lain yang perlu ditulis.
-RUN chown -R www-data:www-data /var/www/html/uploads \
-    && chmod -R 775 /var/www/html/uploads
+# Mengatur kepemilikan dan izin untuk folder 'uploads'.
+RUN chown -R www-data:www-data /var/www/html/uploads && chmod -R 775 /var/www/html/uploads
 
-# --- Bagian Opsional untuk Composer ---
-# Jika proyek PHP Anda menggunakan Composer untuk mengelola dependensi:
-# Hapus tanda komentar '#' pada baris di bawah ini.
-# Ini akan mengunduh Composer dan menginstal semua dependensi proyek.
+# --- Bagian Composer ---
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-RUN composer install --no-dev --optimize-autoloader --working-dir=/var/www/html
+RUN git config --global --add safe.directory /var/www/html && \
+    composer install --no-dev --optimize-autoloader --working-dir=/var/www/html
 
 # Mengumumkan bahwa kontainer akan mendengarkan di port 80.
 EXPOSE 80
 
-# Menyalin file konfigurasi Supervisor kustom dari host ke kontainer.
-# Supervisor akan digunakan untuk menjalankan PHP-FPM dan Nginx secara bersamaan.
-# Pastikan Anda memiliki folder 'supervisor' di root proyek dengan file 'supervisord.conf'.
+# Menyalin file konfigurasi Supervisor.
 COPY ./supervisor/supervisord.conf /etc/supervisord.conf
 
 # Menentukan perintah yang akan dijalankan saat kontainer dimulai.
-# Supervisor akan membaca konfigurasinya dan memulai PHP-FPM dan Nginx.
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
