@@ -1,9 +1,12 @@
 # rental_kendaraan_new/Dockerfile
-# Gunakan base image PHP FPM (sesuaikan versi PHP Anda jika perlu)
+# Gunakan base image PHP FPM (tetap php:8.2-fpm-alpine)
 FROM php:8.2-fpm-alpine
 
-# Instal dependensi sistem yang dibutuhkan untuk PHP, Nginx, Supervisor, dll.
-RUN apk add --no-cache \
+# Update repositori Alpine sebelum menginstal paket
+# Ini memastikan daftar paket terbaru tersedia
+RUN apk update && \
+    # Instal dependensi sistem yang dibutuhkan untuk PHP, Nginx, Supervisor, dll.
+    apk add --no-cache \
     nginx \
     php8-mysqli \
     php8-pdo_mysql \
@@ -19,6 +22,7 @@ RUN apk add --no-cache \
     openssl \
     git \
     unzip \
+    # Pastikan untuk membersihkan cache apk setelah instalasi berhasil
     && rm -rf /var/cache/apk/*
 
 # Konfigurasi Nginx: Salin file konfigurasi Nginx kustom Anda
