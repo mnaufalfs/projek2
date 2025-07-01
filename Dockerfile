@@ -9,19 +9,16 @@ RUN apk update && \
     openssl \
     git \
     unzip \
-    # Tambahkan dependensi dev yang dibutuhkan untuk ekstensi PHP tertentu
-    libxml2-dev \   # <-- BARIS INI DITAMBAHKAN
-    libzip-dev \    # <-- (Opsional, tapi seringkali diperlukan untuk 'zip')
-    libjpeg-turbo-dev \ # <-- (Opsional, tapi seringkali diperlukan untuk 'gd')
-    libpng-dev \        # <-- (Opsional, tapi seringkali diperlukan untuk 'gd')
-    libwebp-dev \       # <-- (Opsional, tapi seringkali diperlukan untuk 'gd')
-    freetype-dev \      # <-- (Opsional, tapi seringkali diperlukan untuk 'gd')
-    # Pastikan untuk membersihkan cache apk setelah instalasi berhasil
+    libxml2-dev \         # <-- Pastikan semua paket ada di bawah apk add --no-cache \
+    libzip-dev \          # <-- Seperti ini
+    libjpeg-turbo-dev \
+    libpng-dev \
+    libwebp-dev \
+    freetype-dev \
     && rm -rf /var/cache/apk/*
 
 # --- BAGIAN INSTALASI EKSTENSI PHP ---
 # Instal ekstensi PHP menggunakan docker-php-ext-install dan docker-php-ext-enable
-# Pastikan nama ekstensi sesuai dengan yang diharapkan oleh PHP (tanpa 'php8-')
 RUN docker-php-ext-install -j$(nproc) \
     mysqli \
     pdo_mysql \
