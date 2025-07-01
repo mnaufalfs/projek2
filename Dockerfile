@@ -18,6 +18,7 @@ RUN apk update && \
     curl-dev \
     zlib-dev \
     libffi-dev \
+    oniguruma-dev \   # <--- TAMBAH BARIS INI
     && rm -rf /var/cache/apk/*
 
 # --- BAGIAN INSTALASI EKSTENSI PHP (UTAMA) ---
