@@ -9,8 +9,8 @@ RUN apk update && \
     openssl \
     git \
     unzip \
-    libxml2-dev \         # <-- Pastikan semua paket ada di bawah apk add --no-cache \
-    libzip-dev \          # <-- Seperti ini
+    libxml2-dev \
+    libzip-dev \
     libjpeg-turbo-dev \
     libpng-dev \
     libwebp-dev \
