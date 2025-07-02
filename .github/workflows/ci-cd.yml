@@ -1,76 +1,67 @@
-# .github/workflows/ci-cd.yml
-name: CI/CD Pipeline for PHP App
+name: CI/CD to DockerHub and EC2
 
 on:
   push:
     branches:
-      - main # Workflow akan berjalan setiap kali ada push ke branch 'main'
+      - main # Ganti dengan branch utama Anda jika berbeda
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest # Menggunakan runner GitHub Actions berbasis Ubuntu
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4 # Mengambil kode sumber dari repositori GitHub
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3 # Menyiapkan Docker Buildx untuk build yang lebih baik
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3 # Melakukan login ke Docker Hub
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+    - name: Login to DockerHub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and push Docker image
-        id: docker_build
-        uses: docker/build-push-action@v5 # Membangun Docker image dan mendorongnya ke Docker Hub
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/rental_kendaraan_new:latest # Tag image dengan username Docker Hub dan nama repo Anda
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/rental-kendaraan:${{ github.sha }}
 
-      - name: Copy Docker Compose and Nginx/Supervisor configs to EC2
-        uses: appleboy/scp-action@v0.1.7 # Action untuk menyalin file ke server via SCP
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "docker-compose.yml,nginx/,supervisor/" # Salin file dan folder ini
-          target: "/var/www/rental_kendaraan_new" # Ke direktori proyek di VPS EC2
-          # Jika Anda ingin menghapus semua isi direktori target sebelum menyalin, gunakan rm_rf: true
-          # HATI-HATI: Ini akan menghapus semua yang ada di /var/www/rental_kendaraan_new di VPS
-          # rm_rf: true
+    - name: Upload docker-compose.yml to EC2
+      uses: appleboy/scp-action@master
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        source: "docker-compose.yml" # Path ke docker-compose.yml di runner GitHub Actions
+        target: "/path/to/your/project/on/ec2/" # Direktori tujuan di EC2
 
-      - name: Deploy to EC2 via SSH
-        uses: appleboy/ssh-action@v1.0.0 # Action untuk koneksi SSH otomatis ke EC2
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            echo "Starting deployment on EC2 at $(date)..."
-            # Pindah ke direktori proyek di VPS
-            cd /var/www/rental_kendaraan_new
-            
-            # Login ke Docker Hub di VPS (penting agar VPS bisa pull image privat jika ada)
-            sudo docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          # Pergi ke direktori proyek di EC2
+          cd /path/to/your/project/on/ec2
 
-            # Tarik image Docker terbaru dari Docker Hub
-            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/rental_kendaraan_new:latest
+          # Pull the latest Docker image (pastikan tag sesuai dengan yang Anda push)
+          sudo docker pull ${{ secrets.DOCKER_USERNAME }}/rental-kendaraan:${{ github.sha }}
 
-            # Hentikan dan hapus container lama
-            sudo docker-compose down
+          # Stop and remove existing containers (if any)
+          sudo docker-compose down --remove-orphans || true
 
-            # Jalankan aplikasi dengan Docker Compose di mode detached (-d)
-            # --build: Membangun kembali image lokal jika Dockerfile telah berubah
-            #          (Meskipun kita sudah pull, ini bisa menjadi fallback)
-            # --remove-orphans: Menghapus kontainer layanan yang tidak lagi didefinisikan dalam docker-compose.yml
-            sudo docker-compose up -d --build --remove-orphans
+          # Create .env file with secrets for docker-compose
+          echo "DB_USER=${{ secrets.DB_USER }}" > .env
+          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+          echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
+          echo "MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}" >> .env
 
-            # Bersihkan image dan container Docker yang tidak terpakai di VPS
-            sudo docker system prune -a -f
+          # Start containers with the new image
+          sudo docker-compose up -d
 
-            echo "Deployment finished successfully at $(date)."
+          # Clean up old Docker images (optional, but good practice)
+          sudo docker image prune -f
