@@ -1,9 +1,10 @@
+# .github/workflows/main.yml
 name: CI/CD to DockerHub and EC2
 
 on:
   push:
     branches:
-      - main # Ganti dengan branch utama Anda jika berbeda
+      - main # Pastikan ini adalah nama branch utama Anda (misalnya, master, main)
 
 jobs:
   build-and-deploy:
@@ -27,17 +28,46 @@ jobs:
       with:
         context: .
         push: true
-        tags: ${{ secrets.DOCKER_USERNAME }}/rental-kendaraan:${{ github.sha }}
+        # Kita akan menggunakan tag 'latest' untuk kesederhanaan, atau Anda bisa pakai ${{ github.sha }}
+        tags: ${{ secrets.DOCKER_USERNAME }}/rental-kendaraan:latest
 
+    # --- LANGKAH BARU: Pastikan direktori proyek ada di EC2 ---
+    - name: Ensure project directory exists on EC2
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          # Buat direktori jika belum ada, -p artinya tidak error jika sudah ada
+          mkdir -p /home/ubuntu/rental_kendaraan_new
+          # Pastikan user SSH memiliki hak akses ke direktori ini
+          sudo chown -R ${{ secrets.EC2_USERNAME }}:${{ secrets.EC2_USERNAME }} /home/ubuntu/rental_kendaraan_new
+
+    # --- LANGKAH BARU: Mempersiapkan docker-compose.yml sebelum diunggah ---
+    - name: Prepare docker-compose.yml for deployment
+      run: |
+        # Definisi nama image Docker lengkap yang akan disuntikkan ke docker-compose.yml
+        # Sesuaikan 'latest' dengan tag yang Anda gunakan di langkah 'Build and push Docker image' di atas
+        FULL_DOCKER_IMAGE="${{ secrets.DOCKER_USERNAME }}/rental-kendaraan:latest"
+
+        # Gunakan 'sed' untuk mengganti placeholder di docker-compose.yml
+        # -i = edit file di tempat
+        # s|pattern|replacement|g = cari 'pattern', ganti dengan 'replacement', lakukan secara global
+        # Menggunakan '|' sebagai delimiter karena nama image bisa mengandung '/'
+        sed -i "s|DOCKER_IMAGE_NAME_PLACEHOLDER|${FULL_DOCKER_IMAGE}|g" docker-compose.yml
+
+    # --- LANGKAH BARU: Mengunggah docker-compose.yml yang sudah dimodifikasi ke EC2 ---
     - name: Upload docker-compose.yml to EC2
       uses: appleboy/scp-action@master
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.EC2_SSH_KEY }}
-        source: "docker-compose.yml" # Path ke docker-compose.yml di runner GitHub Actions
-        target: "/home/ubuntu/rental_kendaraan_new/" # Direktori tujuan di EC2
+        source: "docker-compose.yml" # Ini adalah file yang sudah dimodifikasi oleh langkah 'sed'
+        target: "/home/ubuntu/rental_kendaraan_new/" # Unggah ke direktori proyek di EC2
 
+    # --- LANGKAH DEPLOY: Menjalankan perintah di EC2 ---
     - name: Deploy to EC2
       uses: appleboy/ssh-action@master
       with:
@@ -45,23 +75,25 @@ jobs:
         username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
-          # Pergi ke direktori proyek di EC2
-          cd /home/ubuntu/rental_kendaraan_new/
+          # Navigasi ke direktori proyek di EC2
+          cd /home/ubuntu/rental_kendaraan_new
 
-          # Pull the latest Docker image (pastikan tag sesuai dengan yang Anda push)
-          sudo docker pull ${{ secrets.DOCKER_USERNAME }}/rental-kendaraan:${{ github.sha }}
+          # Pull the latest Docker image (penting untuk memastikan EC2 punya image terbaru)
+          sudo docker pull ${{ secrets.DOCKER_USERNAME }}/rental-kendaraan:latest
 
-          # Stop and remove existing containers (if any)
+          # Hentikan dan hapus kontainer lama (jika ada), --remove-orphans menghapus layanan yang tidak lagi ada di compose file
+          # '|| true' mencegah workflow gagal jika tidak ada kontainer untuk dihentikan/dihapus
           sudo docker-compose down --remove-orphans || true
 
-          # Create .env file with secrets for docker-compose
+          # Buat atau perbarui file .env dengan secrets dari GitHub
+          # '> .env' membuat/menimpa file, '>> .env' menambahkan ke file
           echo "DB_USER=${{ secrets.DB_USER }}" > .env
           echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
           echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
           echo "MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}" >> .env
 
-          # Start containers with the new image
+          # Mulai kontainer Docker (aplikasi dan database) di latar belakang
           sudo docker-compose up -d
 
-          # Clean up old Docker images (optional, but good practice)
+          # Opsional: Bersihkan image Docker lama yang tidak lagi digunakan untuk menghemat ruang disk
           sudo docker image prune -f
