@@ -36,7 +36,7 @@ jobs:
         username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.EC2_SSH_KEY }}
         source: "docker-compose.yml" # Path ke docker-compose.yml di runner GitHub Actions
-        target: "/path/to/your/project/on/ec2/" # Direktori tujuan di EC2
+        target: "/home/ubuntu/rental_kendaraan_new/" # Direktori tujuan di EC2
 
     - name: Deploy to EC2
       uses: appleboy/ssh-action@master
@@ -46,7 +46,7 @@ jobs:
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
           # Pergi ke direktori proyek di EC2
-          cd /path/to/your/project/on/ec2
+          cd /home/ubuntu/rental_kendaraan_new/
 
           # Pull the latest Docker image (pastikan tag sesuai dengan yang Anda push)
           sudo docker pull ${{ secrets.DOCKER_USERNAME }}/rental-kendaraan:${{ github.sha }}
