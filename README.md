@@ -4,7 +4,7 @@ A web-based vehicle rental system built with PHP and MySQL.
 
 ## Features
 
-### User Features
+### User Features 
 - User registration and login
 - Browse available vehicles
 - Filter vehicles by type, price, and search
